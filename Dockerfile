@@ -7,6 +7,7 @@ FROM swift:5.4-focal as build
 RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
     && apt-get -q update \
     && apt-get -q dist-upgrade -y \
+    && apt-get install -y libxml2-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up a build area

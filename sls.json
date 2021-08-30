@@ -1,0 +1,44 @@
+{
+    "component": "scf",
+    "name": "${env:INSTANCE_NAME}",
+    "inputs": {
+        "name": "workwechat-push",
+        "region": "${env:REGION}",
+        "src": "./",
+        "type": "web",
+        "description": "This is a function in ${app} application.",
+        "memorySize": 64,
+        "image": {
+            "imageType": "personal",
+            "imageUrl": "${env:sls_image_url}",
+            "command": "./Run",
+            "args": "\"serve\",\"--env\",\"production\",\"--hostname\",\"0.0.0.0\",\"--port\",\"9000\""
+        },
+        "environment": {
+            "variables": {
+                "BACKEND_CALLBACKURL": "${env:BACKEND_CALLBACKURL}",
+                "CORP_ID": "${env:CORP_ID}",
+                "CORP_SECRET": "${env:CORP_SECRET}",
+                "ENCODING_AESKEY": "${env:ENCODING_AESKEY}",
+                "ENCODING_TOKEN": "${env:ENCODING_TOKEN}"
+            }
+        },
+        "events": [{
+            "apigw": {
+                "parameters": {
+                    "serviceName": "wechat_serverless",
+                    "description": "企业微信推送",
+                    "endpoints": [{
+                        "function": {
+                            "isIntegratedResponse": true
+                        },
+                        "method": "ANY",
+                        "path": "/"
+                    }],
+                    "environment": "release",
+                    "protocols": ["http", "https"]
+                }
+            }
+        }]
+    }
+}

@@ -1,0 +1,49 @@
+# https://github.com/serverless-components/tencent-scf/blob/master/docs/configure.md
+
+org: '${env:TENCENT_APP_ID}'
+#应用组织信息
+app: '${env:APP_NAME}' # 应用名称。留空则默认取当前组件的实例名称为app名称。
+stage: '${env:STAGE}' # 环境名称。默认值是 dev。建议使用${env.STAGE}变量定义环境名称
+
+#组件信息
+component: scf # (必选) 组件名称，在该实例中为scf
+name: '${env:INSTANCE_NAME}' # (必选) 组件实例名称。
+
+inputs: #组件参数配置
+    name: workwechat-push # 云函数名称，默认为 ${name}-${stage}-${app}
+    src:
+    src: ./
+    exclude: # 排除
+        - .env
+    type: web # 函数类型，默认为 event(事件类型)，web(web类型)
+    region: '${env:REGION}' # 函数所在区域 ap-hongkong
+    description: 'This is a function in ${app} application.'
+    runtime: '${env:RUNTIME}' # 运行环境 默认 Nodejs10.15, 支持 Nodejs12.16
+    memorySize: 64 # 内存大小，单位MB
+    environment: #  环境变量
+    variables: #  环境变量对象
+        BACKEND_CALLBACKURL: 'http://127.0.0.1:8080/hello'
+        CORP_ID: 'AAAA'   # 企业ID
+        CORP_SECRET: 'AAAA'   # 应用 Secret
+        ENCODING_AESKEY: 'AAAA' # 应用 API AESKey
+        ENCODING_TOKEN: 'AAAA' # 应用 API Token
+    image: # 镜像配置
+        registryId: tcr-xxx # 容器镜像服务名称，企业版必须
+        imageType: personal # 镜像类型：personal - 个人，enterprise - 企业版，public - 镜像模板
+        imageUrl: '${env:sls_image_url}' # ccr.ccs.tencentyun.com/sls-scf/nodejs_test:latest@sha256:xxx
+        command: ./Run # 容器启动命令
+        args: '"serve","--env","production","--hostname","0.0.0.0","--port","9000"' # 容器启动参数
+    events: # 触发器
+    - apigw: # api网关触发器，已有apigw服务，配置触发器
+        parameters:
+            serviceName: wechat_serverless
+            description: '企业微信推送'
+            protocols:
+            - http
+            - https
+            environment: release
+            endpoints:
+            - path: /
+                method: ANY
+# END
+
