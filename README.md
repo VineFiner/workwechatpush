@@ -17,8 +17,17 @@ curl --location --request POST 'http://127.0.0.1:8080/info' \
 ```
 
 ## 接收消息与事件
-### 配置云函数
-7 个变量
 
-- 
+### 本地测试
+
+- 配置环境变量
+
+```
+touch .env
+echo "CORP_ID=AAAAAAAAAAAAAAA" >> .env
+echo "CORP_SECRET=AAAAAAAAAA" >> .env
+echo "ENCODING_AESKEY=AAAAAAA" >> .env
+echo "ENCODING_TOKEN=AAAAAAAA" >> .env
+echo "BACKEND_CALLBACKURL=http://127.0.0.1:8080/hello" >> .env
+```
 
