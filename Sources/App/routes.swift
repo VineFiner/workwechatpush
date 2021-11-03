@@ -21,30 +21,28 @@ func routes(_ app: Application) throws {
      "agentId": "1000002",
      }'
      */
-    app.post("hello") { req async throws -> CallbackTextContentInfo in
+    app.post("hello") { req -> EventLoopFuture<CallbackTextContentInfo> in
         
         let receive = try req.content.decode(WorkReceiveContentInfo.self)
         guard let urlPath = "https://baike.baidu.com/item/\(receive.content)".addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
             let callback = CallbackTextContentInfo.init(ToUserName: receive.toUserName, FromUserName: receive.fromUserName, CreateTime: receive.createTime, MsgType: receive.msgType, Content: receive.content)
-            return callback
+            return req.eventLoop.future(callback)
         }
-        // 访问百度百科
-        let callbackRespose = try await req.client.get(.init(string: urlPath))
-        
-        // 回调响应
-        var contentString: String = receive.content
-        if let receiveXmlString = try? callbackRespose.content.decode(String.self, using: PlaintextDecoder()),
-           let node = try? HTML(html: receiveXmlString, encoding: .utf8),
-           let contentElement = node.at_xpath(#"//div[@class="lemma-summary"]/div[@class="para"]"#),
-           let content = contentElement.text?.trimmingCharacters(in: .whitespacesAndNewlines)
-        {
-            contentString = content + "\n" + urlPath
-            req.logger.info("\(contentString)")
+        return req.client.get(.init(string: urlPath))
+            .map { res -> CallbackTextContentInfo in
+                var contentString: String = receive.content
+                if let receiveXmlString = try? res.content.decode(String.self, using: PlaintextDecoder()),
+                   let node = try? HTML(html: receiveXmlString, encoding: .utf8),
+                   let contentElement = node.at_xpath(#"//div[@class="lemma-summary"]/div[@class="para"]"#),
+                   let content = contentElement.text?.trimmingCharacters(in: .whitespacesAndNewlines)
+                {
+                    contentString = content + "\n" + urlPath
+                    req.logger.info("\(contentString)")
+                }
+                let callback = CallbackTextContentInfo.init(ToUserName: receive.toUserName, FromUserName: receive.fromUserName, CreateTime: receive.createTime, MsgType: receive.msgType, Content: contentString)
+                return callback
         }
-        let callback = CallbackTextContentInfo.init(ToUserName: receive.toUserName, FromUserName: receive.fromUserName, CreateTime: receive.createTime, MsgType: receive.msgType, Content: contentString)
-        return callback
     }
-    
     /** 简单推送文本消息
      curl --location --request POST 'http://127.0.0.1:8080/info' \
      --header 'Content-Type: application/json' \

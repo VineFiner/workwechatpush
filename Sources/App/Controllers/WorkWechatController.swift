@@ -18,7 +18,7 @@ struct WorkWechatController: RouteCollection {
     }
     
     // http://127.0.0.1:8080/api/work?msg_signature=ASDFQWESADFSFSFASDFSS&timestamp=13500001234&nonce=123412323&echostr=ENCRYPT_STR
-    func index(req: Request) throws -> String {
+    func index(req: Request) throws -> EventLoopFuture<String> {
         
         struct WorkReceiveVerifyInfo: Codable {
             let msg_signature: String
@@ -30,72 +30,65 @@ struct WorkWechatController: RouteCollection {
         let receiveInfo = try req.query.decode(WorkReceiveVerifyInfo.self)
         let replyEchoStr = try verifyURL(msgSignature: receiveInfo.msg_signature, timeStamp: receiveInfo.timestamp, nonce: receiveInfo.nonce, echostr: receiveInfo.echostr, logger: req.logger)
         req.logger.info("\(replyEchoStr)")
-        
-        return replyEchoStr
+        return req.eventLoop.future(replyEchoStr)
     }
     
     /* 接收消息请求的说明
      * https://work.weixin.qq.com/api/doc/90000/90135/90241#%E5%9B%BE%E6%96%87%E6%B6%88%E6%81%AF
      */
-    func receiveWeChatInfo(req: Request) async throws -> Response {
-        
+    func receiveWeChatInfo(req: Request) throws -> EventLoopFuture<Response> {
+
         let receiveInfo = try req.query.decode(WorkQueryReceiveInfo.self)
         let reqData = try req.content.decode(String.self, using: PlaintextDecoder())
-        let reqContent = try WorkPostReceiveInfo.deserialize(reqData)
         req.logger.debug("req: \(req) \nreqData:\(reqData)")
-
-        // 解密内容
+        let reqContent = try WorkPostReceiveInfo.deserialize(reqData)
+        
         let receiveMessageXml = try DecryptMsg(msgSignature: receiveInfo.msg_signature, timeStamp: receiveInfo.timestamp, nonce: receiveInfo.nonce, msgEncrypt: reqContent.encrypt, logger: req.logger)
         req.logger.debug("receiveMessageXml:\(receiveMessageXml)")
         
-        // 解码内容
         let receiveMessage = try WorkReceiveContentInfo.deserialize(receiveMessageXml)
         req.logger.info("message:\(receiveMessage.content)")
         
         // 这里是后端回调
-        let response = try await req.client.post("\(AppConfig.environment.backend_callbackUrl)") {req in
-            // Encode query string to the request URL.
+        return req.client.post("\(AppConfig.environment.backend_callbackUrl)") {req in
+//            // Encode query string to the request URL.
 //            try req.query.encode(["q": "test"])
-            
+
             // Encode JSON to the request body.
             try req.content.encode(receiveMessage)
-            
-            // Add auth header to the request
+//
+//            // Add auth header to the request
 //            let auth = BasicAuthorization(username: "something", password: "somethingelse")
 //            req.headers.basicAuthorization = auth
         }
-        
-        // 格式化后端回调内容
-        var receiveXmlString: String = ""
-        if let json = try? response.content.decode(WorkCallbackTextContentInfo.self) {
-            receiveXmlString = json.toXml()
-            req.logger.info("replayString:\(json.Content)")
-        } else {
-            receiveXmlString = try response.content.decode(String.self, using: PlaintextDecoder())
-            req.logger.debug("replayXmlString:\(receiveXmlString)")
+        .flatMapThrowing { res -> (xmlContent: String, signature: String, timestamp: String, nonce: String) in
+            var receiveXmlString: String = ""
+            
+            if let callbackJson = try? res.content.decode(WorkCallbackTextContentInfo.self) {
+                receiveXmlString = callbackJson.toXml()
+                req.logger.info("replayString:\(callbackJson.Content)")
+            } else {
+                receiveXmlString = try res.content.decode(String.self, using: PlaintextDecoder())
+                req.logger.debug("replayXmlString:\(receiveXmlString)")
+            }
+            
+            let timestamp = receiveInfo.timestamp
+            let nonce = receiveInfo.nonce
+            
+            let replayMessage: (signature: String, xmlContent: String) = try EncryptMsg(timeStamp: timestamp, nonce: nonce, msgEncrypt: receiveXmlString, logger: req.logger)
+            req.logger.debug("replayMessage:\(replayMessage.xmlContent)")
+            return (replayMessage.xmlContent, replayMessage.signature, "\(timestamp)", nonce)
         }
-        
-        // 加密回调内容
-        let timestamp = receiveInfo.timestamp
-        let nonce = receiveInfo.nonce
-        let replayMessage: (signature: String, xmlContent: String) = try EncryptMsg(timeStamp: timestamp, nonce: nonce, msgEncrypt: receiveXmlString, logger: req.logger)
-        req.logger.debug("replayMessage:\(replayMessage.xmlContent)")
-        
-        // 构造返回响应
-        var headers = HTTPHeaders()
-        headers.contentType = .xml
-        let responseXML: Response = .init(
-            status: .ok,
-            headers: headers,
-            body: .init(string: """
+        .flatMap { replay -> EventLoopFuture<Response> in
+            return WorkResponseXML(value: """
                 <xml>
-                   <Encrypt><![CDATA[\(replayMessage.xmlContent)]]></Encrypt>
-                   <MsgSignature><![CDATA[\(replayMessage.signature)]]></MsgSignature>
-                   <TimeStamp>\(timestamp)</TimeStamp>
-                   <Nonce><![CDATA[\(nonce)]]></Nonce>
+                   <Encrypt><![CDATA[\(replay.xmlContent)]]></Encrypt>
+                   <MsgSignature><![CDATA[\(replay.signature)]]></MsgSignature>
+                   <TimeStamp>\(replay.timestamp)</TimeStamp>
+                   <Nonce><![CDATA[\(replay.nonce)]]></Nonce>
                 </xml>
-                """))
-        return responseXML
+                """).encodeResponse(for: req)
+        }
     }
 
     struct WorkQueryReceiveInfo: Codable {
@@ -172,6 +165,19 @@ struct WorkWechatController: RouteCollection {
     }
 }
 
+struct WorkResponseXML {
+    let value: String
+}
+
+extension WorkResponseXML: ResponseEncodable {
+    public func encodeResponse(for request: Request) -> EventLoopFuture<Response> {
+        var headers = HTTPHeaders()
+        headers.contentType = .xml
+        return request.eventLoop.makeSucceededFuture(.init(
+            status: .ok, headers: headers, body: .init(string: value)
+        ))
+    }
+}
 extension WorkWechatController {
     // 验证URL
     func verifyURL(msgSignature: String, timeStamp: Int, nonce: String, echostr: String, logger: Logger) throws  -> String {
