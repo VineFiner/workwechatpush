@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import WorkWechatSDK
 import Vapor
 
 extension Application {

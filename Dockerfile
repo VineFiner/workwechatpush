@@ -1,12 +1,13 @@
 # ================================
 # Build image
 # ================================
-FROM swift:5.4-focal as build
+FROM swift:5.5.1-focal as build
 
 # Install OS updates and, if needed, sqlite3
 RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true \
     && apt-get -q update \
     && apt-get -q dist-upgrade -y \
+    && apt-get install -y libxml2-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up a build area
@@ -39,7 +40,7 @@ RUN [ -d /build/Resources ] && { mv /build/Resources ./Resources && chmod -R a-w
 # ================================
 # Run image
 # ================================
-FROM swift:5.4-focal-slim
+FROM swift:5.5.1-focal-slim
 
 # Make sure all system packages are up to date.
 RUN export DEBIAN_FRONTEND=noninteractive DEBCONF_NONINTERACTIVE_SEEN=true && \
