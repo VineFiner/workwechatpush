@@ -12,7 +12,7 @@
             "imageType": "personal",
             "imageUrl": "${env:sls_image_url}",
             "command": "./Run",
-            "args": "\"serve\",\"--env\",\"production\",\"--hostname\",\"0.0.0.0\",\"--port\",\"9000\""
+            "args": "serve --env production --hostname 0.0.0.0 --port 9000"
         },
         "environment": {
             "variables": {

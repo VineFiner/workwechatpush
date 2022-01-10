@@ -29,8 +29,14 @@ struct AppConfig {
               let encodingAesKey = Environment.get("ENCODING_AESKEY"),
               let encodingToken = Environment.get("ENCODING_TOKEN"),
               let backendCallbackUrl = Environment.get("BACKEND_CALLBACKURL") else {
-            fatalError("Please add app configuration to environment variables")
-        }
+                  assertionFailure("Please add app configuration to environment variables")
+                  return .init(corp_id: "",
+                               corp_secret: "",
+                               encoding_aesKey: "",
+                               encoding_token: "",
+                               backend_callbackUrl: "http://127.0.0.1:8080/hello")
+              }
+        
         return .init(corp_id: coprid, corp_secret: corpsecret, encoding_aesKey: encodingAesKey, encoding_token: encodingToken, backend_callbackUrl: backendCallbackUrl)
     }
 }
