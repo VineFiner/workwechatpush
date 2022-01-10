@@ -6,7 +6,7 @@
 docker run --rm \
 -v "$PWD:/workspace" \
 -w /workspace \
-swift:5.5.1-centos7  \
+swift:5.5.2-centos7  \
 /bin/bash -cl " \
      yum remove git -y && \
      yum install https://repo.ius.io/ius-release-el7.rpm -y && \
@@ -53,7 +53,7 @@ cd .build/install && zip --symlinks app-0.0.1.zip *
 - 复制 yml 文件
 
 ```
-cp SCF/CustomRuntime/Serverless.yml serverless.yml
+cp SCF/Serverless.yml serverless.yml
 ```
 
 - 部署
